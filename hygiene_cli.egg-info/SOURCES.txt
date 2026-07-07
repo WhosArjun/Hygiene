@@ -1,0 +1,8 @@
+README.md
+hygiene.py
+pyproject.toml
+hygiene_cli.egg-info/PKG-INFO
+hygiene_cli.egg-info/SOURCES.txt
+hygiene_cli.egg-info/dependency_links.txt
+hygiene_cli.egg-info/entry_points.txt
+hygiene_cli.egg-info/top_level.txt

@@ -1,0 +1,132 @@
+Metadata-Version: 2.4
+Name: hygiene-cli
+Version: 0.1.0
+Summary: Give any git repo a security hygiene report card.
+Author: your-name-here
+License: MIT
+Keywords: security,git,cli,devsecops,secrets-detection
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Security
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+
+# hygiene
+
+**Give any git repo a security hygiene report card.**
+
+`hygiene` scans a local or remote git repository and grades it A–F based on
+things that actually bite teams in production: leaked secrets (in current
+files *and* buried in commit history), committed `.env` files, unpinned
+dependencies with no lockfile, and dangerous GitHub Actions patterns.
+
+One command. Zero config. No signup, no dashboard, no dependencies beyond
+Python's standard library + `git`.
+
+```
+$ hygiene https://github.com/some/repo
+
+hygiene — scanning /tmp/hygiene-xyz/repo
+
+  ✗ Hardcoded secrets in tracked files     (-10/30)
+  ✗ Secrets in git commit history          (-10/20)
+  ✓ .env files committed                   (-0/15)
+  ✓ Dependency pinning / lockfiles         (-0/15)
+  ✗ Risky CI/CD workflow patterns          (-8/15)
+  ✓ .gitignore hygiene                     (-0/5)
+
+Score: 72/100   Grade: C
+
+Findings:
+  • [Hardcoded secrets in tracked files] AWS Access Key ID pattern matched in config.py
+  • [Secrets in git commit history] AWS Access Key ID pattern found in commit history (last 200 commits)
+  • [Risky CI/CD workflow patterns] ci.yml: uses pull_request_target with a checkout
+      step — can allow untrusted PR code to run with repo secrets
+```
+
+## Why
+
+Every team means to check for this stuff. Almost none of them do, until
+something leaks. This is the five-second version of that check — the kind
+of thing you run on a repo before you clone it, before you deploy it, or as
+a required check in CI so a bad PR never merges in the first place.
+
+## Install
+
+```bash
+pip install hygiene-cli
+```
+
+Or run it straight from source, no install:
+
+```bash
+git clone https://github.com/yourname/hygiene
+cd hygiene
+python3 hygiene.py .
+```
+
+## Usage
+
+```bash
+# Scan the current directory
+hygiene .
+
+# Scan a local path
+hygiene /path/to/repo
+
+# Scan a remote repo directly by URL (clones to a temp dir, cleans up after)
+hygiene https://github.com/user/repo
+
+# Fail the command (exit code 1) if the grade drops below C — great for CI
+hygiene . --fail-under C
+
+# Scan further back into history (default is the last 200 commits)
+hygiene . --history-depth 1000
+
+# Plain output, no ANSI colors (for logs / non-tty environments)
+hygiene . --no-color
+```
+
+## What it checks
+
+| Check                              | Weight | What triggers it |
+|-------------------------------------|:------:|-------------------|
+| Hardcoded secrets in tracked files  | 30 pts | AWS keys, API keys/tokens, private key blocks, Slack/GitHub/Stripe tokens found in current files |
+| Secrets in git commit history       | 20 pts | Same patterns, found anywhere in recent commit diffs — catches secrets that were added and later "removed" but still live in history |
+| `.env` files committed              | 15 pts | A `.env` or `.env.*` file tracked in the repo |
+| Dependency pinning / lockfiles      | 15 pts | Unpinned `requirements.txt` entries, or a `package.json` with no lockfile |
+| Risky CI/CD workflow patterns       | 15 pts | `pull_request_target` combined with a checkout step, or workflows granting `write-all` permissions |
+| `.gitignore` hygiene                |  5 pts | Missing `.gitignore`, or one missing most common entries |
+
+Grades: **A** 90–100 · **B** 80–89 · **C** 70–79 · **D** 60–69 · **F** below 60
+
+## Use it in CI
+
+```yaml
+# .github/workflows/hygiene.yml
+name: Security Hygiene
+on: [pull_request]
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: pip install hygiene-cli
+      - run: hygiene . --fail-under C
+```
+
+## Notes on scope
+
+`hygiene` uses regex-based pattern matching, the same class of technique
+used by tools like gitleaks and detect-secrets. It's fast and dependency-free,
+but it's a first-pass check, not a replacement for a full secrets-scanning
+pipeline on repos that need one. False positives/negatives are possible —
+treat a bad grade as "go look here," not gospel.
+
+## License
+
+MIT
